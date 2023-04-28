@@ -22,43 +22,54 @@ with open("./Pickle/face-labels.pickle", 'rb') as f:##
     print(labels)
 
 
+# Initialize dictionaries to keep track of the number of times each ID and name are detected
+id_count = {}
+name_count = {}
+
 while True:
-    check,frame = video.read()
+    check, frame = video.read()
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    face = cascade.detectMultiScale(gray, scaleFactor = 1.9, minNeighbors = 5)
-    #print(face)
-    for x,y,w,h in face:
+    face = cascade.detectMultiScale(gray, scaleFactor=1.9, minNeighbors=5)
+    for x, y, w, h in face:
         face_save = gray[y:y+h, x:x+w]
-        # Predicting the face identified
         ID, conf = recognise.predict(face_save)
-        #print(ID,conf)
-        if conf >= 20 and conf <= 100:
-            print(conf)
-            print(ID)
-            print(labels[ID])
-            cv2.putText(frame,labels[ID],(x-10,y-10),cv2.FONT_HERSHEY_COMPLEX ,1, (18,5,255), 2, cv2.LINE_AA ) 
+        name = labels[ID]
 
+        if conf >= 20 and conf <= 100:
+            cv2.putText(frame, name, (x-10, y-10), cv2.FONT_HERSHEY_COMPLEX, 1, (18, 5, 255), 2, cv2.LINE_AA)
             time_now = datetime.now()
             current_time = time_now.strftime("%H:%M:%S")
-            df_old = pd.read_excel("attendance.xlsx",sheet_name="attendance")
-            dataframe=pd.DataFrame({'Name':[str(labels[ID])],
-                                    'Date':[str(date.today())],
-                                    'Time':[str(current_time)]
-                                    })
-            
-            dataframe=df_old.append(dataframe)
-            writer = pd.ExcelWriter("attendance.xlsx", engine='xlsxwriter')
-            dataframe.to_excel(writer,sheet_name = "attendance", index=False)
-            writer.save()
+            df_old = pd.read_excel("attendance.xlsx", sheet_name="attendance")
 
+            # Count the number of times each ID and name are detected
+            if ID in id_count:
+                id_count[ID] += 1
+            else:
+                id_count[ID] = 1
 
-        frame = cv2.rectangle(frame, (x,y), (x+w,y+h),(0,255,255),4)
+            print(id_count[ID])
+            if id_count[ID] == 5 and str(labels[ID]) not in df_old['Name'].values:
+                dataframe = pd.DataFrame({'Name': [str(labels[ID])],
+                                           'Date': [str(date.today())],
+                                           'Time': [str(current_time)]
+                                          })
+                dataframe = df_old.append(dataframe)
+                writer = pd.ExcelWriter("attendance.xlsx", engine='xlsxwriter')
+                dataframe.to_excel(writer, sheet_name="attendance", index=False)
+                writer.save()
 
-    cv2.imshow("Video",frame)
+                id_count[ID] = 0
+            if id_count[ID] == 5:
+                id_count[ID] = 0
+
+        frame = cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 255), 4)
+
+    cv2.imshow("Video", frame)
     key = cv2.waitKey(1)
-    if(key == ord('q')):
+    if key == ord('q'):
         break
+
 
 video.release()
 cv2.destroyAllWindows()
